@@ -29,6 +29,7 @@ public class News {
     protected String title = null;
     protected String content = null;
     protected String time = null;
+    protected String source = null;
 
     protected Element contentElement = null;
 
@@ -84,5 +85,11 @@ public class News {
         this.contentElement = contentElement;
     }
 
-   
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
 }

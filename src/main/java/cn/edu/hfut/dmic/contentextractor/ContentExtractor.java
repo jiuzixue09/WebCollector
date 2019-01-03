@@ -20,6 +20,7 @@ package cn.edu.hfut.dmic.contentextractor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -184,7 +185,13 @@ public class ContentExtractor {
         }
 
         try {
-            news.setTime(getTime(contentElement));
+
+            String time = getTimeFromMeta();
+            if(null == time){
+                news.setTime(getTime(contentElement));
+            }else{
+                news.setTime(time);
+            }
         } catch (Exception ex) {
             LOG.info("news title extraction failed", ex);
         }
@@ -194,11 +201,64 @@ public class ContentExtractor {
         } catch (Exception ex) {
             LOG.info("title extraction failed", ex);
         }
+
+        try {
+            news.setSource(getSource(contentElement));
+        }catch (Exception ex){
+            LOG.info("source extraction failed", ex);
+        }
         return news;
     }
 
+    protected String getSource(Element contentElement){
+        //Pattern fromPat = Pattern.compile("来源[:：]\\s*([^\\s\\u00a0<]+)");
+        //	Pattern authorPat = Pattern.compile("责任编辑[:：]\\s*([^\\s\\u00a0<]+)");
+
+        String regex = "[^片]来源[:：]\\s*([^\\s\\u00a0<]+)";
+        Pattern pattern = Pattern.compile(regex);
+        Element current = contentElement;
+        for (int i = 0; i < 1; i++) {
+            if (current != null && current != doc.body()) {
+                Element parent = current.parent();
+                if (parent != null) {
+                    current = parent;
+                }
+            }
+        }
+        for (int i = 0; i < 6; i++) {
+            if (current == null) {
+                break;
+            }
+            String currentHtml = current.outerHtml();
+            Matcher matcher = pattern.matcher(currentHtml);
+            if (matcher.find()) {//[^0-9:\s-]+
+                return matcher.group(1);
+            }
+            if (current != doc.body()) {
+                current = current.parent();
+            }
+        }
+
+        return null;
+    }
+
+    protected String getTimeFromMeta() {
+        String currentHtml = doc.select("meta").outerHtml();
+
+        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2})?)?";
+        Pattern pattern = Pattern.compile(regex);
+
+        Matcher matcher = pattern.matcher(currentHtml);
+        if (matcher.find()) {//[^0-9:\s-]+
+            return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + " " + matcher.group(4) + ":" + matcher.group(5) + Optional.ofNullable(matcher.group(7)).flatMap(it -> Optional.of(":" + it)).orElse("");
+        }
+
+        return null;
+    }
+
     protected String getTime(Element contentElement) throws Exception {
-        String regex = "([1-2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-9]{1,2})";
+        //String regex = "([1-2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-9]{1,2})?";
+        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2})?)?";
         Pattern pattern = Pattern.compile(regex);
         Element current = contentElement;
         for (int i = 0; i < 2; i++) {
@@ -213,26 +273,28 @@ public class ContentExtractor {
             if (current == null) {
                 break;
             }
-            String currentHtml = current.outerHtml();
+            String currentHtml = current.text();
             Matcher matcher = pattern.matcher(currentHtml);
-            if (matcher.find()) {
-                return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + " " + matcher.group(4) + ":" + matcher.group(5) + ":" + matcher.group(6);
+            if (matcher.find()) {//[^0-9:\s-]+
+                return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + " " + matcher.group(4) + ":" + matcher.group(5) + Optional.ofNullable(matcher.group(7)).flatMap(it -> Optional.of(":" + it)).orElse("");
             }
             if (current != doc.body()) {
                 current = current.parent();
             }
         }
 
+
         try {
             return getDate(contentElement);
         } catch (Exception ex) {
-            throw new Exception("time not found");
+            System.err.println(ex.toString());
         }
-
+        return null;
     }
 
     protected String getDate(Element contentElement) throws Exception {
-        String regex = "([1-2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})";
+        // String regex = "([1-2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})";
+        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})";
         Pattern pattern = Pattern.compile(regex);
         Element current = contentElement;
         for (int i = 0; i < 2; i++) {
@@ -513,10 +575,11 @@ public class ContentExtractor {
 
     public static void main(String[] args) throws Exception {
 
-        News news = ContentExtractor.getNewsByUrl("http://www.huxiu.com/article/121959/1.html");
+        News news = ContentExtractor.getNewsByUrl("http://www.sohu.com/a/284721087_740319");
         System.out.println(news.getUrl());
         System.out.println(news.getTitle());
         System.out.println(news.getTime());
+        System.out.println(news.getSource());
         System.out.println(news.getContent());
         //System.out.println(news.getContentElement());
 
