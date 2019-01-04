@@ -17,15 +17,13 @@
  */
 package cn.edu.hfut.dmic.contentextractor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import cn.edu.hfut.dmic.webcollector.plugin.net.OkHttpRequester;
+import com.gargoylesoftware.htmlunit.WebClient;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -33,6 +31,7 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
 import org.jsoup.select.NodeVisitor;
+import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -245,11 +244,11 @@ public class ContentExtractor {
     protected String getTimeFromMeta() {
         String currentHtml = doc.select("meta").outerHtml();
 
-        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2})?)?";
+        String regex = "[^/]([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[0-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2}))?";
         Pattern pattern = Pattern.compile(regex);
 
         Matcher matcher = pattern.matcher(currentHtml);
-        if (matcher.find()) {//[^0-9:\s-]+
+        if (matcher.find()) {
             return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + " " + matcher.group(4) + ":" + matcher.group(5) + Optional.ofNullable(matcher.group(7)).flatMap(it -> Optional.of(":" + it)).orElse("");
         }
 
@@ -258,7 +257,7 @@ public class ContentExtractor {
 
     protected String getTime(Element contentElement) throws Exception {
         //String regex = "([1-2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-9]{1,2})?";
-        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[1-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2})?)?";
+        String regex = "([2][0-9]{3})[^0-9]{1,5}?([0-1]?[0-9])[^0-9]{1,5}?([0-9]{1,2})[^0-9]{1,5}?([0-2]?[0-9])[^0-9]{1,5}?([0-9]{1,2})([^0-9]{1,5}?([0-9]{1,2}))?";
         Pattern pattern = Pattern.compile(regex);
         Element current = contentElement;
         for (int i = 0; i < 2; i++) {
@@ -275,7 +274,7 @@ public class ContentExtractor {
             }
             String currentHtml = current.text();
             Matcher matcher = pattern.matcher(currentHtml);
-            if (matcher.find()) {//[^0-9:\s-]+
+            if (matcher.find() && matcher.start() * 1.0 / currentHtml.length() < 0.3) {//date must on the top
                 return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3) + " " + matcher.group(4) + ":" + matcher.group(5) + Optional.ofNullable(matcher.group(7)).flatMap(it -> Optional.of(":" + it)).orElse("");
             }
             if (current != doc.body()) {
@@ -309,9 +308,9 @@ public class ContentExtractor {
             if (current == null) {
                 break;
             }
-            String currentHtml = current.outerHtml();
+            String currentHtml = current.text();
             Matcher matcher = pattern.matcher(currentHtml);
-            if (matcher.find()) {
+            if (matcher.find() && matcher.start() * 1.0 / currentHtml.length() < 0.3) {//date must on the top
                 return matcher.group(1) + "-" + matcher.group(2) + "-" + matcher.group(3);
             }
             if (current != doc.body()) {
@@ -575,12 +574,30 @@ public class ContentExtractor {
 
     public static void main(String[] args) throws Exception {
 
-        News news = ContentExtractor.getNewsByUrl("http://www.sohu.com/a/284721087_740319");
-        System.out.println(news.getUrl());
-        System.out.println(news.getTitle());
-        System.out.println(news.getTime());
-        System.out.println(news.getSource());
-        System.out.println(news.getContent());
+            News news = null;
+            HtmlUnitDriver driver = new HtmlUnitDriver(true);
+            String url = "http://toutiao.com/group/6626174111179604484/";
+            try {
+                news = ContentExtractor.getNewsByUrl(url);
+            }catch (Exception e){
+                driver.get(url);
+                news = ContentExtractor.getNewsByHtml(driver.getPageSource(), url);
+            }
+
+            System.out.println(news.getUrl());
+            System.out.println(news.getTitle());
+            System.out.println(news.getTime());
+            System.out.println(news.getSource());
+            System.out.println(news.getContent());
+            driver.quit();
+
+
+
+            //System.out.println(news.getContentElement());
+
+            //System.out.println(news);
+
+
         //System.out.println(news.getContentElement());
 
         //System.out.println(news);
